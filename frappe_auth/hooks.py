@@ -127,23 +127,12 @@ app_license = "MIT"
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"frappe_auth.tasks.all"
-# 	],
-# 	"daily": [
-# 		"frappe_auth.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"frappe_auth.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"frappe_auth.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"frappe_auth.tasks.monthly"
-# 	],
-# }
+scheduler_events = {
+	"daily": [
+		# Remove tokens that expired more than 7 days ago from the Token Blacklist doctype
+		"frappe_auth.utils.jwt_auth.cleanup_expired_blacklist"
+	],
+}
 
 # Testing
 # -------
@@ -210,6 +199,14 @@ app_license = "MIT"
 # Authentication and authorization
 # --------------------------------
 
+# Validate JWT bearer tokens on every authenticated request.
+# Remove this hook if you want to rely solely on the API-level @jwt_required decorator.
 # auth_hooks = [
 # 	"frappe_auth.auth.validate"
 # ]
+
+# Socket.IO server — add this process to your Procfile to start alongside Frappe:
+#   frappe_auth: node {bench_path}/apps/frappe_auth/frappe_auth/realtime/socketio.js
+#
+# Or configure in common_site_config.json:
+#   "frappe_auth_socketio_port": 9001
