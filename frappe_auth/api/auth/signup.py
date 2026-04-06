@@ -2,6 +2,7 @@ import frappe
 from frappe import _
 from frappe.utils import random_string, now
 from frappe_auth.utils.error_handler import success_response
+from frappe_auth.utils.auth_settings import get_auth_settings, send_with_template_or_fallback
 import json
 
 
@@ -98,7 +99,7 @@ def verify_otp(verification_key, otp):
 		user.insert()
 
 		# Assign configurable default role
-		default_role = frappe.conf.get("signup_default_role") or "Customer"
+		default_role = get_auth_settings()["default_role"]
 		user.add_roles(default_role)
 
 		frappe.cache().delete_value(cache_key)
@@ -150,7 +151,9 @@ def _send_signup_otp_email(email, full_name, otp):
 	"""Send OTP verification email for signup."""
 	first_name = full_name.split()[0] if full_name else email.split("@")[0]
 
-	html_content = f"""
+	template_name = get_auth_settings().get("registration_template")
+
+	fallback_html = f"""
 	<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
 		<p>Hi {first_name},</p>
 		<p>Your OTP for email verification is:</p>
@@ -162,12 +165,11 @@ def _send_signup_otp_email(email, full_name, otp):
 	</div>
 	"""
 
-	frappe.sendmail(
+	send_with_template_or_fallback(
 		recipients=email,
 		subject=_("Verify Your Email - OTP"),
-		message=html_content,
+		template_name=template_name,
+		template_args={"first_name": first_name, "otp": otp},
+		fallback_html=fallback_html,
 		header=[_("Email Verification"), "blue"],
-		delayed=False,
-		retry=3,
-		now=True
 	)

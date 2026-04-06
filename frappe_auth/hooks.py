@@ -127,6 +127,12 @@ app_license = "MIT"
 # Scheduled Tasks
 # ---------------
 
+doc_events = {
+    "Auth Settings": {
+        "on_update": "frappe_auth.utils.auth_settings.invalidate_settings_cache",
+    },
+}
+
 scheduler_events = {
 	"daily": [
 		# Remove tokens that expired more than 7 days ago from the Token Blacklist doctype

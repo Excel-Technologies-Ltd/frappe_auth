@@ -1,0 +1,114 @@
+{
+ "actions": [],
+ "creation": "2026-04-06 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "token_settings_section",
+  "access_token_expiry",
+  "column_break_vepec",
+  "refresh_token_expiry",
+  "user_registration_section",
+  "default_role",
+  "column_break_lngcg",
+  "registration_template",
+  "password_reset_section",
+  "forgot_password_template",
+  "two_factor_auth_section",
+  "two_factor_auth_template"
+ ],
+ "fields": [
+  {
+   "fieldname": "token_settings_section",
+   "fieldtype": "Section Break",
+   "label": "Token Settings"
+  },
+  {
+   "default": "1",
+   "description": "Access token validity in hours. Default: 1 hour.",
+   "fieldname": "access_token_expiry",
+   "fieldtype": "Int",
+   "label": "Access Token Expiry (Hours)"
+  },
+  {
+   "default": "7",
+   "description": "Refresh token validity in days. Default: 7 days.",
+   "fieldname": "refresh_token_expiry",
+   "fieldtype": "Int",
+   "label": "Refresh Token Expiry (Days)"
+  },
+  {
+   "fieldname": "user_registration_section",
+   "fieldtype": "Section Break",
+   "label": "User Registration"
+  },
+  {
+   "default": "Customer",
+   "description": "Role assigned to new users on registration.",
+   "fieldname": "default_role",
+   "fieldtype": "Link",
+   "label": "Default User Role",
+   "options": "Role"
+  },
+  {
+   "description": "Email Template used for signup OTP. Template context: {{ first_name }}, {{ otp }}. If not set, the built-in template is used.",
+   "fieldname": "registration_template",
+   "fieldtype": "Link",
+   "label": "Registration OTP Template",
+   "options": "Email Template"
+  },
+  {
+   "fieldname": "password_reset_section",
+   "fieldtype": "Section Break",
+   "label": "Password Reset"
+  },
+  {
+   "description": "Email Template used for forgot-password OTP. Template context: {{ first_name }}, {{ last_name }}, {{ otp }}, {{ expiry_minutes }}. If not set, the built-in template is used.",
+   "fieldname": "forgot_password_template",
+   "fieldtype": "Link",
+   "label": "Forgot Password OTP Template",
+   "options": "Email Template"
+  },
+  {
+   "fieldname": "two_factor_auth_section",
+   "fieldtype": "Section Break",
+   "label": "Two Factor Authentication"
+  },
+  {
+   "description": "Email Template used for 2FA OTP. Template context: {{ first_name }}, {{ otp }}. If not set, the built-in template is used.",
+   "fieldname": "two_factor_auth_template",
+   "fieldtype": "Link",
+   "label": "Two Factor Auth Template",
+   "options": "Email Template"
+  },
+  {
+   "fieldname": "column_break_vepec",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_lngcg",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-04-06 03:22:59.050012",
+ "modified_by": "Administrator",
+ "module": "Frappe Auth",
+ "name": "Auth Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

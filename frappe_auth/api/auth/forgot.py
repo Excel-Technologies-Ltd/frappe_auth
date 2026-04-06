@@ -4,6 +4,7 @@ from frappe.utils import now_datetime, today
 from frappe.utils.password import update_password as frappe_update_password
 from frappe.rate_limiter import rate_limit
 from frappe_auth.utils.error_handler import throw_error, ErrorCode, success_response
+from frappe_auth.utils.auth_settings import get_auth_settings, send_with_template_or_fallback
 import pyotp
 from base64 import b32encode
 import os
@@ -248,7 +249,9 @@ def _send_otp_email(email, otp):
 	last_name = user.last_name if user else ""
 	expiry_minutes = int(OTP_EXPIRY_SECONDS / 60)
 
-	html_content = f"""
+	template_name = get_auth_settings().get("forgot_password_template")
+
+	fallback_html = f"""
 	<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
 		<p>Dear {first_name} {last_name},</p>
 		<p>You have requested to reset your password. Your One-Time Password (OTP) is:</p>
@@ -260,12 +263,16 @@ def _send_otp_email(email, otp):
 	</div>
 	"""
 
-	frappe.sendmail(
+	send_with_template_or_fallback(
 		recipients=email,
 		subject=_("Password Reset OTP"),
-		message=html_content,
+		template_name=template_name,
+		template_args={
+			"first_name": first_name,
+			"last_name": last_name,
+			"otp": otp,
+			"expiry_minutes": expiry_minutes,
+		},
+		fallback_html=fallback_html,
 		header=[_("Password Reset OTP"), "blue"],
-		delayed=False,
-		retry=3,
-		now=True
 	)

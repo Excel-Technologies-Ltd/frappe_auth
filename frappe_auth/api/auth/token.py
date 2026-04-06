@@ -8,6 +8,7 @@ from frappe_auth.utils.jwt_auth import (
 	revoke_specific_sessions
 )
 from frappe_auth.utils.error_handler import throw_error, ErrorCode, success_response
+from frappe_auth.utils.auth_settings import get_auth_settings
 import jwt
 
 
@@ -35,8 +36,9 @@ def refresh(refresh_token):
 		if not frappe.db.get_value("User", user, "enabled"):
 			throw_error(ErrorCode.UNAUTHORIZED, _("User account is disabled"), http_status_code=403)
 
-		access_hours = int(frappe.conf.get("access_token_expiry") or 1)
-		refresh_days = int(frappe.conf.get("refresh_token_expiry") or 7)
+		settings = get_auth_settings()
+		access_hours = settings["access_token_expiry"]
+		refresh_days = settings["refresh_token_expiry"]
 
 		new_access_token = generate_access_token(user, expires_in_hours=access_hours)
 		new_refresh_token = generate_refresh_token(user, expires_in_days=refresh_days)
