@@ -208,9 +208,9 @@ override_whitelisted_methods = {
 
 # Validate JWT bearer tokens on every authenticated request.
 # Remove this hook if you want to rely solely on the API-level @jwt_required decorator.
-# auth_hooks = [
-# 	"frappe_auth.auth.validate"
-# ]
+auth_hooks = [
+	"frappe_auth.auth.validate"
+]
 
 # Socket.IO server — add this process to your Procfile to start alongside Frappe:
 #   frappe_auth: node {bench_path}/apps/frappe_auth/frappe_auth/realtime/socketio.js
