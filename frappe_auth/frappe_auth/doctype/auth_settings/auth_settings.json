@@ -51,6 +51,7 @@
    "options": "Role"
   },
   {
+   "default": "Registration OTP Template",
    "description": "Email Template used for signup OTP. Template context: {{ first_name }}, {{ otp }}. If not set, the built-in template is used.",
    "fieldname": "registration_template",
    "fieldtype": "Link",

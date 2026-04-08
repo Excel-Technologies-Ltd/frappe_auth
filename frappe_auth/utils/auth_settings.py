@@ -62,7 +62,7 @@ def send_with_template_or_fallback(
     header=None,
 ):
     """
-    Send an email using a configured Email Template when available,
+    Send an email using a configured Frappe Email Template doctype when available,
     otherwise fall back to the provided inline HTML.
 
     Args:
@@ -75,21 +75,30 @@ def send_with_template_or_fallback(
         header (list | None): [title, colour] banner for frappe.sendmail.
     """
     if template_name and frappe.db.exists("Email Template", template_name):
-        frappe.sendmail(
-            recipients=recipients,
-            template=template_name,
-            args=template_args,
-            delayed=False,
-            retry=3,
-            now=True,
-        )
-    else:
-        frappe.sendmail(
-            recipients=recipients,
-            subject=subject,
-            message=fallback_html,
-            header=header or [],
-            delayed=False,
-            retry=3,
-            now=True,
-        )
+        try:
+            email_template = frappe.get_doc("Email Template", template_name)
+            rendered = email_template.get_formatted_email(template_args)
+            frappe.sendmail(
+                recipients=recipients,
+                subject=rendered.get("subject") or subject,
+                message=rendered.get("message") or fallback_html,
+                delayed=False,
+                retry=3,
+                now=True,
+            )
+            return
+        except Exception:
+            frappe.log_error(
+                f"Failed to render Email Template '{template_name}', falling back to static HTML",
+                "frappe_auth send_with_template_or_fallback",
+            )
+
+    frappe.sendmail(
+        recipients=recipients,
+        subject=subject,
+        message=fallback_html,
+        header=header or [],
+        delayed=False,
+        retry=3,
+        now=True,
+    )
