@@ -25,6 +25,12 @@ def sign_up(email, full_name, password, mobile_no=None, redirect_to=None):
 				"message": _("User registered but not active. Please contact the administrator.")
 			}
 
+	# Check mobile number uniqueness before sending OTP
+	if mobile_no:
+		existing = frappe.db.get_value("User", {"mobile_no": mobile_no}, "name")
+		if existing:
+			return {"success": False, "message": _("An account with this mobile number already exists.")}
+
 	# Basic rate-limiting: no more than 300 sign-ups in the last hour
 	if frappe.db.sql("""
 		SELECT COUNT(*) FROM tabUser
@@ -102,6 +108,9 @@ def verify_otp(verification_key, otp):
 		default_role = get_auth_settings()["default_role"]
 		user.add_roles(default_role)
 
+		# Create a Customer linked to this user if one doesn't exist yet
+		customer_name = _ensure_customer(user.email, user_data["full_name"], user_data.get("mobile_no"))
+
 		frappe.cache().delete_value(cache_key)
 
 		redirect_url = user_data.get("redirect_to") or "/"
@@ -110,6 +119,7 @@ def verify_otp(verification_key, otp):
 			"success": True,
 			"message": _("Account verified successfully. You can now login."),
 			"email": user.email,
+			"customer": customer_name,
 			"redirect_to": redirect_url
 		}
 
@@ -145,6 +155,89 @@ def resend_otp(verification_key):
 	_send_signup_otp_email(user_data["email"], user_data["full_name"], new_otp)
 
 	return {"success": True, "message": _("New OTP sent to your email.")}
+
+
+def _ensure_customer(email: str, full_name: str, mobile_no: str = None) -> str:
+	"""
+	Create a Customer + Contact for the newly registered user if one doesn't
+	already exist. Returns the Customer name (existing or newly created).
+	"""
+	# Check via Customer.email_id directly first (fastest path)
+	existing = frappe.db.get_value("Customer", {"email_id": email}, "name")
+	if existing:
+		return existing
+
+	# Also check via Contact → Dynamic Link (covers customers created through charge)
+	result = frappe.db.sql(
+		"""
+		SELECT dl.link_name
+		FROM   `tabContact`      c
+		JOIN   `tabDynamic Link` dl
+		       ON  dl.parent       = c.name
+		       AND dl.parenttype   = 'Contact'
+		       AND dl.link_doctype = 'Customer'
+		WHERE  c.email_id = %s
+		LIMIT  1
+		""",
+		email,
+	)
+	if result:
+		return result[0][0]
+
+	# No existing customer — create one
+	try:
+		original_user = frappe.session.user
+		frappe.set_user("Administrator")
+
+		try:
+			customer_group = (
+				frappe.db.get_single_value("Selling Settings", "customer_group")
+				or frappe.db.get_value("Customer Group", {"is_group": 0}, "name")
+				or "All Customer Groups"
+			)
+			territory = (
+				frappe.db.get_single_value("Selling Settings", "territory")
+				or frappe.db.get_value("Territory", {"is_group": 0}, "name")
+				or "All Territories"
+			)
+
+			customer = frappe.get_doc({
+				"doctype":        "Customer",
+				"customer_name":  full_name,
+				"customer_type":  "Individual",
+				"customer_group": customer_group,
+				"territory":      territory,
+				"email_id":       email,
+			})
+			customer.insert(ignore_permissions=True)
+
+			contact_data = {
+				"doctype":    "Contact",
+				"first_name": full_name,
+				"email_id":   email,
+				"email_ids":  [{"doctype": "Contact Email", "email_id": email, "is_primary": 1}],
+				"links": [{
+					"doctype":      "Dynamic Link",
+					"link_doctype": "Customer",
+					"link_name":    customer.name,
+				}],
+			}
+			if mobile_no:
+				contact_data["phone"] = mobile_no
+				contact_data["phone_nos"] = [
+					{"doctype": "Contact Phone", "phone": mobile_no, "is_primary_phone": 1}
+				]
+
+			frappe.get_doc(contact_data).insert(ignore_permissions=True)
+			return customer.name
+
+		finally:
+			frappe.set_user(original_user)
+
+	except Exception:
+		# Non-fatal — log full traceback and continue.
+		frappe.log_error(frappe.get_traceback(), "Signup Customer Creation Error")
+		return None
 
 
 def _send_signup_otp_email(email, full_name, otp):
