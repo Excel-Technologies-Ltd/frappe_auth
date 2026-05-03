@@ -54,12 +54,15 @@ def sign_up(email, full_name, password, mobile_no=None, redirect_to=None):
 	cache_key = f"signup_verification:{verification_key}"
 	frappe.cache().set_value(cache_key, json.dumps(cache_data), expires_in_sec=300)
 
-	_send_signup_otp_email(email, full_name, otp)
+	_enqueue_signup_otp_email(email, full_name, otp)
 
 	return {
 		"success": True,
-		"message": _("OTP sent to your email. Please verify within 5 minutes."),
-		"verification_key": verification_key
+		"message": _(
+			"Your signup request was received. You should receive a verification "
+			"code by email shortly. Please verify within 5 minutes."
+		),
+		"verification_key": verification_key,
 	}
 
 
@@ -152,9 +155,12 @@ def resend_otp(verification_key):
 
 	frappe.cache().set_value(cache_key, json.dumps(user_data), expires_in_sec=300)
 
-	_send_signup_otp_email(user_data["email"], user_data["full_name"], new_otp)
+	_enqueue_signup_otp_email(user_data["email"], user_data["full_name"], new_otp)
 
-	return {"success": True, "message": _("New OTP sent to your email.")}
+	return {
+		"success": True,
+		"message": _("A new verification code is being sent to your email."),
+	}
 
 
 def _ensure_customer(email: str, full_name: str, mobile_no: str = None) -> str:
@@ -240,13 +246,33 @@ def _ensure_customer(email: str, full_name: str, mobile_no: str = None) -> str:
 		return None
 
 
+def _enqueue_signup_otp_email(email, full_name, otp):
+	"""Queue signup OTP email; fall back to synchronous send if the job queue is unavailable."""
+	try:
+		frappe.enqueue(
+			"frappe_auth.api.auth.signup._send_signup_otp_email",
+			queue="short",
+			timeout=120,
+			email=email,
+			full_name=full_name,
+			otp=otp,
+		)
+	except Exception:
+		frappe.log_error(
+			frappe.get_traceback(),
+			"frappe_auth signup OTP: enqueue failed, sending synchronously",
+		)
+		_send_signup_otp_email(email, full_name, otp)
+
+
 def _send_signup_otp_email(email, full_name, otp):
-	"""Send OTP verification email for signup."""
-	first_name = full_name.split()[0] if full_name else email.split("@")[0]
+	"""Send OTP verification email for signup (runs in request or background worker)."""
+	try:
+		first_name = full_name.split()[0] if full_name else email.split("@")[0]
 
-	template_name = get_auth_settings().get("registration_template")
+		template_name = get_auth_settings().get("registration_template")
 
-	fallback_html = f"""
+		fallback_html = f"""
 	<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
 		<p>Hi {first_name},</p>
 		<p>Your OTP for email verification is:</p>
@@ -258,11 +284,16 @@ def _send_signup_otp_email(email, full_name, otp):
 	</div>
 	"""
 
-	send_with_template_or_fallback(
-		recipients=email,
-		subject=_("Verify Your Email - OTP"),
-		template_name=template_name,
-		template_args={"first_name": first_name, "otp": otp},
-		fallback_html=fallback_html,
-		header=[_("Email Verification"), "blue"],
-	)
+		send_with_template_or_fallback(
+			recipients=email,
+			subject=_("Verify Your Email - OTP"),
+			template_name=template_name,
+			template_args={"first_name": first_name, "otp": otp},
+			fallback_html=fallback_html,
+			header=[_("Email Verification"), "blue"],
+		)
+	except Exception:
+		frappe.log_error(
+			frappe.get_traceback(),
+			"frappe_auth signup OTP email send failed",
+		)

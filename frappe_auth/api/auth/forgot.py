@@ -81,19 +81,14 @@ def send_forgot_password_otp(email):
 
 	frappe.cache().set_value(_cache_key(token), otp_data, expires_in_sec=OTP_EXPIRY_SECONDS)
 
-	try:
-		_send_otp_email(user.email, otp)
-	except Exception as e:
-		frappe.log_error(f"Failed to send OTP email: {str(e)}", "Forgot Password OTP Email Error")
-		throw_error(
-			ErrorCode.OPERATION_FAILED,
-			_("Failed to send OTP email. Please try again later."),
-			http_status_code=500
-		)
+	_enqueue_forgot_otp_email(user.email, otp)
 
 	return success_response(
-		message=_("An OTP has been sent to your email address. Please check your inbox."),
-		data={"token": token, "expires_in": OTP_EXPIRY_SECONDS}
+		message=_(
+			"If this email exists in our system, you will receive an OTP shortly. "
+			"Please check your inbox."
+		),
+		data={"token": token, "expires_in": OTP_EXPIRY_SECONDS},
 	)
 
 
@@ -233,25 +228,49 @@ def resend_forgot_password_otp(token):
 	if otp_data.get("used"):
 		throw_error(ErrorCode.TOKEN_REVOKED, _("This OTP has already been used. Please request a new one."), http_status_code=401)
 
-	try:
-		_send_otp_email(otp_data.get("email"), otp_data.get("otp"))
-	except Exception as e:
-		frappe.log_error(f"Failed to resend OTP email: {str(e)}", "Forgot Password Resend OTP Error")
-		throw_error(ErrorCode.OPERATION_FAILED, _("Failed to resend OTP email. Please try again later."), http_status_code=500)
+	_enqueue_forgot_otp_email(otp_data.get("email"), otp_data.get("otp"))
 
-	return success_response(message=_("OTP has been resent to your email address."))
+	return success_response(
+		message=_("A new OTP is being sent to your email address."),
+	)
+
+
+def _enqueue_forgot_otp_email(email, otp):
+	"""Queue forgot-password OTP email; fall back to synchronous send if enqueue fails."""
+	if not email or not otp:
+		return
+	try:
+		frappe.enqueue(
+			"frappe_auth.api.auth.forgot._send_otp_email",
+			queue="short",
+			timeout=120,
+			email=email,
+			otp=otp,
+		)
+	except Exception:
+		frappe.log_error(
+			frappe.get_traceback(),
+			"frappe_auth forgot OTP: enqueue failed, sending synchronously",
+		)
+		_send_otp_email(email, otp)
 
 
 def _send_otp_email(email, otp):
-	"""Send the password-reset OTP to the user's email."""
-	user = frappe.db.get_value("User", {"email": email}, ["first_name", "last_name"], as_dict=True)
-	first_name = user.first_name if user else ""
-	last_name = user.last_name if user else ""
-	expiry_minutes = int(OTP_EXPIRY_SECONDS / 60)
+	"""Send the password-reset OTP to the user's email (request or background worker)."""
+	try:
+		user = frappe.db.get_value(
+			"User",
+			{"email": email},
+			["first_name", "last_name"],
+			as_dict=True,
+		)
+		first_name = user.first_name if user else ""
+		last_name = user.last_name if user else ""
+		expiry_minutes = int(OTP_EXPIRY_SECONDS / 60)
 
-	template_name = get_auth_settings().get("forgot_password_template")
+		template_name = get_auth_settings().get("forgot_password_template")
 
-	fallback_html = f"""
+		fallback_html = f"""
 	<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
 		<p>Dear {first_name} {last_name},</p>
 		<p>You have requested to reset your password. Your One-Time Password (OTP) is:</p>
@@ -263,16 +282,21 @@ def _send_otp_email(email, otp):
 	</div>
 	"""
 
-	send_with_template_or_fallback(
-		recipients=email,
-		subject=_("Password Reset OTP"),
-		template_name=template_name,
-		template_args={
-			"first_name": first_name,
-			"last_name": last_name,
-			"otp": otp,
-			"expiry_minutes": expiry_minutes,
-		},
-		fallback_html=fallback_html,
-		header=[_("Password Reset OTP"), "blue"],
-	)
+		send_with_template_or_fallback(
+			recipients=email,
+			subject=_("Password Reset OTP"),
+			template_name=template_name,
+			template_args={
+				"first_name": first_name,
+				"last_name": last_name,
+				"otp": otp,
+				"expiry_minutes": expiry_minutes,
+			},
+			fallback_html=fallback_html,
+			header=[_("Password Reset OTP"), "blue"],
+		)
+	except Exception:
+		frappe.log_error(
+			frappe.get_traceback(),
+			"frappe_auth forgot OTP email send failed",
+		)
