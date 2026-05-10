@@ -13,8 +13,8 @@ import hashlib
 
 # Configuration
 OTP_EXPIRY_SECONDS = 600   # 10 minutes
-MAX_OTP_ATTEMPTS = 5
-RATE_LIMIT_REQUESTS = 3
+MAX_OTP_ATTEMPTS = 20  # 5
+RATE_LIMIT_REQUESTS = 20 # 3
 RATE_LIMIT_WINDOW = 3600   # 1 hour
 
 
