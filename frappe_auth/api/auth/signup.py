@@ -270,7 +270,8 @@ def _send_signup_otp_email(email, full_name, otp):
 	try:
 		first_name = full_name.split()[0] if full_name else email.split("@")[0]
 
-		template_name = get_auth_settings().get("registration_template")
+		settings = get_auth_settings()
+		template_name = settings.get("registration_template") or settings.get("two_factor_auth_template")
 
 		fallback_html = f"""
 	<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">

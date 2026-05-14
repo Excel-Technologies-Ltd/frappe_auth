@@ -76,12 +76,15 @@ def send_with_template_or_fallback(
     """
     if template_name and frappe.db.exists("Email Template", template_name):
         try:
-            email_template = frappe.get_doc("Email Template", template_name)
-            rendered = email_template.get_formatted_email(template_args)
+            tmpl = frappe.get_doc("Email Template", template_name)
+            # Render response_html directly — bypasses the "Use HTML" checkbox so
+            # templates always work regardless of how that flag is set.
+            html_body = frappe.render_template(tmpl.response_html or tmpl.response, template_args)
+            email_subject = frappe.render_template(tmpl.subject, template_args) or subject
             frappe.sendmail(
                 recipients=recipients,
-                subject=rendered.get("subject") or subject,
-                message=rendered.get("message") or fallback_html,
+                subject=email_subject,
+                message=html_body or fallback_html,
                 delayed=False,
                 retry=3,
                 now=True,
@@ -89,8 +92,8 @@ def send_with_template_or_fallback(
             return
         except Exception:
             frappe.log_error(
-                f"Failed to render Email Template '{template_name}', falling back to static HTML",
-                "frappe_auth send_with_template_or_fallback",
+                frappe.get_traceback(),
+                f"frappe_auth: failed to render Email Template '{template_name}'",
             )
 
     frappe.sendmail(

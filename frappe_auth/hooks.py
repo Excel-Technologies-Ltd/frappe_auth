@@ -171,7 +171,6 @@ override_whitelisted_methods = {
 
 # Request Events
 # ----------------
-# before_request = ["frappe_auth.utils.before_request"]
 # after_request = ["frappe_auth.utils.after_request"]
 
 # Job Events

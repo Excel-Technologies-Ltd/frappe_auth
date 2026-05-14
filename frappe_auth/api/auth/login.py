@@ -2,6 +2,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint
 from frappe.twofactor import should_run_2fa, authenticate_for_2factor, confirm_otp_token, get_cached_user_pass
+import frappe_auth.overrides  # noqa: F401 — ensures send_token_via_email patch is applied
 from frappe.sessions import clear_sessions
 from frappe_auth.utils.jwt_auth import generate_access_token, generate_refresh_token, add_user_session
 from frappe_auth.utils.error_handler import throw_error, ErrorCode, success_response
@@ -60,6 +61,10 @@ def login(user, pwd):
 
 	# Two-factor authentication
 	if should_run_2fa(user):
+		import frappe.twofactor as _ft
+		from frappe_auth.utils.custom_2fa import send_token_via_email as _custom_send
+		_ft.send_token_via_email = _custom_send
+
 		frappe.form_dict.pwd = pwd
 		authenticate_for_2factor(user)
 		verification_data = frappe.local.response.get("verification", {})

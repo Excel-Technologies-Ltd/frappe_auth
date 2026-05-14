@@ -236,7 +236,7 @@ def resend_forgot_password_otp(token):
 
 
 def _enqueue_forgot_otp_email(email, otp):
-	"""Queue forgot-password OTP email; fall back to synchronous send if enqueue fails."""
+	"""Enqueue forgot-password OTP email so the API response returns immediately."""
 	if not email or not otp:
 		return
 	try:
@@ -248,10 +248,7 @@ def _enqueue_forgot_otp_email(email, otp):
 			otp=otp,
 		)
 	except Exception:
-		frappe.log_error(
-			frappe.get_traceback(),
-			"frappe_auth forgot OTP: enqueue failed, sending synchronously",
-		)
+		frappe.log_error(frappe.get_traceback(), "frappe_auth forgot OTP: enqueue failed, sending synchronously")
 		_send_otp_email(email, otp)
 
 
@@ -268,7 +265,8 @@ def _send_otp_email(email, otp):
 		last_name = user.last_name if user else ""
 		expiry_minutes = int(OTP_EXPIRY_SECONDS / 60)
 
-		template_name = get_auth_settings().get("forgot_password_template")
+		settings = get_auth_settings()
+		template_name = settings.get("forgot_password_template") or settings.get("two_factor_auth_template")
 
 		fallback_html = f"""
 	<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
